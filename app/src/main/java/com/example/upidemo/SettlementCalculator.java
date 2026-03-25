@@ -15,30 +15,19 @@ public class SettlementCalculator {
         public double balance;
         public String statusMessage;
 
-        public UserStatus(String userId, String name, double amountPaid, double share, String currentUserId) {
+        public UserStatus(String userId, String name, double amountPaid, double share) {
             this.userId = userId;
             this.name = name;
             this.amountPaid = amountPaid;
             this.share = share;
             this.balance = amountPaid - share;
 
-            boolean isCurrentUser = userId.equals(currentUserId);
-            String displayName = isCurrentUser ? "You" : name;
-
             if (this.balance > 0.01) {
-                if (isCurrentUser) {
-                    this.statusMessage = "The group owes you ₹" + String.format("%.2f", balance);
-                } else {
-                    this.statusMessage = "The group owes " + displayName + " ₹" + String.format("%.2f", balance);
-                }
+                this.statusMessage = "The group owes you ₹" + String.format("%.2f", balance);
             } else if (this.balance < -0.01) {
-                if (isCurrentUser) {
-                    this.statusMessage = "You owe the group ₹" + String.format("%.2f", Math.abs(balance));
-                } else {
-                    this.statusMessage = displayName + " owes the group ₹" + String.format("%.2f", Math.abs(balance));
-                }
+                this.statusMessage = "You owe the group ₹" + String.format("%.2f", Math.abs(balance));
             } else {
-                this.statusMessage = displayName + (isCurrentUser ? " are settled" : " is settled");
+                this.statusMessage = "You are settled";
             }
         }
     }
@@ -55,39 +44,31 @@ public class SettlementCalculator {
         }
     }
 
-    public static GroupSummary calculateGroupSummary(List<User> groupMembers, List<Expense> expenses, String currentUserId) {
+    public static GroupSummary calculateGroupSummary(List<User> groupMembers, List<Expense> expenses) {
         int N = groupMembers.size();
         if (N == 0) return new GroupSummary(0, 0, new ArrayList<>());
 
-        Map<String, Double> netContributionMap = new HashMap<>();
+        // 1. Calculate total amount paid by each user
+        Map<String, Double> paidMap = new HashMap<>();
         for (User u : groupMembers) {
-            netContributionMap.put(u.userId, 0.0);
+            paidMap.put(u.userId, 0.0);
         }
 
-        double totalGroupExpense = 0;
+        double totalExpense = 0;
         for (Expense e : expenses) {
-            if ("group".equals(e.type)) {
-                totalGroupExpense += e.amount;
-                netContributionMap.put(e.paidBy, netContributionMap.getOrDefault(e.paidBy, 0.0) + e.amount);
-            } else if ("settlement".equals(e.type)) {
-                // Settlement: Payer's contribution goes up, Recipient's contribution goes down (reimbursed)
-                netContributionMap.put(e.paidBy, netContributionMap.getOrDefault(e.paidBy, 0.0) + e.amount);
-                if (e.splitBetween != null && !e.splitBetween.isEmpty()) {
-                    String recipientId = e.splitBetween.get(0);
-                    if (netContributionMap.containsKey(recipientId)) {
-                        netContributionMap.put(recipientId, netContributionMap.get(recipientId) - e.amount);
-                    }
-                }
-            }
+            totalExpense += e.amount;
+            paidMap.put(e.paidBy, paidMap.getOrDefault(e.paidBy, 0.0) + e.amount);
         }
 
-        double sharePerPerson = totalGroupExpense / N;
+        // 2. Calculate fair share
+        double sharePerPerson = totalExpense / N;
 
+        // 3. Create status for each user
         List<UserStatus> userStatuses = new ArrayList<>();
         for (User u : groupMembers) {
-            userStatuses.add(new UserStatus(u.userId, u.name, netContributionMap.get(u.userId), sharePerPerson, currentUserId));
+            userStatuses.add(new UserStatus(u.userId, u.name, paidMap.get(u.userId), sharePerPerson));
         }
 
-        return new GroupSummary(totalGroupExpense, sharePerPerson, userStatuses);
+        return new GroupSummary(totalExpense, sharePerPerson, userStatuses);
     }
 }

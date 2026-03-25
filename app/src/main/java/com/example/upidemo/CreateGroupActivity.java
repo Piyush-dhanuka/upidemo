@@ -13,18 +13,24 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 public class CreateGroupActivity extends AppCompatActivity {
     private EditText groupNameInput, searchPhoneInput;
-    private RecyclerView usersRv;
+    private RecyclerView usersRv, recentUsersRv;
+    private TextView recentTitle;
     private Button createGroupBtn, searchBtn;
     private FirebaseFirestore db;
     private PrefManager pref;
     private SelectedUserAdapter adapter;
+    private RecentUserAdapter recentAdapter;
     private List<User> selectedUsers;
+    private List<User> recentUsers;
     private List<String> selectedUserIds;
 
     @Override
@@ -37,16 +43,16 @@ public class CreateGroupActivity extends AppCompatActivity {
         groupNameInput = findViewById(R.id.groupNameInput);
         searchPhoneInput = findViewById(R.id.searchPhoneInput);
         usersRv = findViewById(R.id.usersRv);
+        recentUsersRv = findViewById(R.id.recentUsersRv);
+        recentTitle = findViewById(R.id.recentTitle);
         createGroupBtn = findViewById(R.id.createGroupBtn);
         searchBtn = findViewById(R.id.searchBtn);
 
         selectedUsers = new ArrayList<>();
+        recentUsers = new ArrayList<>();
         selectedUserIds = new ArrayList<>();
         
-        // Add current user to the group by default
         selectedUserIds.add(pref.getUserId());
-        // We don't necessarily need the current user in the visible list, 
-        // but it's good for clarity if we did. For now, let's just keep them in IDs.
 
         adapter = new SelectedUserAdapter(selectedUsers, userId -> {
             selectedUserIds.remove(userId);
@@ -62,8 +68,71 @@ public class CreateGroupActivity extends AppCompatActivity {
         usersRv.setLayoutManager(new LinearLayoutManager(this));
         usersRv.setAdapter(adapter);
 
+        recentAdapter = new RecentUserAdapter(recentUsers, user -> {
+            if (!selectedUserIds.contains(user.userId)) {
+                selectedUsers.add(user);
+                selectedUserIds.add(user.userId);
+                adapter.notifyDataSetChanged();
+            } else {
+                Toast.makeText(this, "User already added", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        recentUsersRv.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
+        recentUsersRv.setAdapter(recentAdapter);
+
+        loadRecentPeople();
+
         searchBtn.setOnClickListener(v -> searchUser());
         createGroupBtn.setOnClickListener(v -> createGroup());
+    }
+
+    private void loadRecentPeople() {
+        String currentUserId = pref.getUserId();
+        db.collection("groups")
+                .whereArrayContains("members", currentUserId)
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    Set<String> memberIds = new HashSet<>();
+                    for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
+                        Group group = doc.toObject(Group.class);
+                        if (group.members != null) {
+                            for (String id : group.members) {
+                                if (!id.equals(currentUserId)) {
+                                    memberIds.add(id);
+                                }
+                            }
+                        }
+                    }
+
+                    if (memberIds.isEmpty()) {
+                        recentTitle.setVisibility(View.GONE);
+                        recentUsersRv.setVisibility(View.GONE);
+                        return;
+                    }
+
+                    // Fetch user details for these IDs
+                    List<String> idsList = new ArrayList<>(memberIds);
+                    // Firestore 'in' query supports up to 10 elements.
+                    // For simplicity, we'll just take the first 10 recent unique members.
+                    List<String> limitedIds = idsList.subList(0, Math.min(idsList.size(), 10));
+
+                    db.collection("users")
+                            .whereIn("userId", limitedIds)
+                            .get()
+                            .addOnSuccessListener(userSnapshots -> {
+                                recentUsers.clear();
+                                for (QueryDocumentSnapshot userDoc : userSnapshots) {
+                                    User user = userDoc.toObject(User.class);
+                                    recentUsers.add(user);
+                                }
+                                if (!recentUsers.isEmpty()) {
+                                    recentTitle.setVisibility(View.VISIBLE);
+                                    recentUsersRv.setVisibility(View.VISIBLE);
+                                    recentAdapter.notifyDataSetChanged();
+                                }
+                            });
+                });
     }
 
     private void searchUser() {
@@ -116,6 +185,49 @@ public class CreateGroupActivity extends AppCompatActivity {
                     finish();
                 })
                 .addOnFailureListener(e -> Toast.makeText(this, "Failed to create group", Toast.LENGTH_SHORT).show());
+    }
+
+    private static class RecentUserAdapter extends RecyclerView.Adapter<RecentUserAdapter.ViewHolder> {
+        private List<User> users;
+        private OnUserClickListener listener;
+
+        public interface OnUserClickListener {
+            void onUserClick(User user);
+        }
+
+        public RecentUserAdapter(List<User> users, OnUserClickListener listener) {
+            this.users = users;
+            this.listener = listener;
+        }
+
+        @NonNull
+        @Override
+        public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_user, parent, false);
+            return new ViewHolder(view);
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+            User user = users.get(position);
+            holder.name.setText(user.name);
+            // Hide the checkbox for the horizontal recent list to keep it clean
+            View checkBox = holder.itemView.findViewById(R.id.userCheckBox);
+            if (checkBox != null) checkBox.setVisibility(View.GONE);
+
+            holder.itemView.setOnClickListener(v -> listener.onUserClick(user));
+        }
+
+        @Override
+        public int getItemCount() { return users.size(); }
+
+        static class ViewHolder extends RecyclerView.ViewHolder {
+            TextView name;
+            public ViewHolder(@NonNull View itemView) {
+                super(itemView);
+                name = itemView.findViewById(R.id.userNameText);
+            }
+        }
     }
 
     private static class SelectedUserAdapter extends RecyclerView.Adapter<SelectedUserAdapter.ViewHolder> {
