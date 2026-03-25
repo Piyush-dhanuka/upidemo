@@ -6,18 +6,18 @@ import android.content.Intent;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Bundle;
+import android.util.Log;
 import android.widget.Button;
-import android.widget.TextView;
+import android.widget.EditText;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
-import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.firestore.FirebaseFirestore;
 import java.util.UUID;
 
 public class SignupActivity extends AppCompatActivity {
-    private TextInputEditText nameInput, pinInput, phoneInput;
+    private static final String TAG = "SignupActivity";
+    private EditText nameInput, pinInput, phoneInput;
     private Button signupBtn;
-    private TextView loginLink;
     private FirebaseFirestore db;
     private PrefManager pref;
     private ProgressDialog progressDialog;
@@ -34,7 +34,6 @@ public class SignupActivity extends AppCompatActivity {
         phoneInput = findViewById(R.id.phoneInput);
         pinInput = findViewById(R.id.pinInput);
         signupBtn = findViewById(R.id.signupBtn);
-        loginLink = findViewById(R.id.loginLink);
 
         progressDialog = new ProgressDialog(this);
         progressDialog.setMessage("Creating account...");
@@ -57,6 +56,7 @@ public class SignupActivity extends AppCompatActivity {
 
             progressDialog.show();
 
+            // Check if phone number already exists
             db.collection("users").whereEqualTo("phoneNumber", phone).get()
                 .addOnSuccessListener(queryDocumentSnapshots -> {
                     if (!queryDocumentSnapshots.isEmpty()) {
@@ -70,11 +70,6 @@ public class SignupActivity extends AppCompatActivity {
                     progressDialog.dismiss();
                     Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
-        });
-
-        loginLink.setOnClickListener(v -> {
-            startActivity(new Intent(this, LoginActivity.class));
-            finish();
         });
     }
 

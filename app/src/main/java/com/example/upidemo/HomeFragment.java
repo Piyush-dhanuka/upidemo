@@ -2,7 +2,6 @@ package com.example.upidemo;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.net.Uri;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -17,7 +16,9 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import com.google.firebase.firestore.FirebaseFirestore;
-import java.net.URLDecoder;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 public class HomeFragment extends Fragment {
@@ -32,8 +33,7 @@ public class HomeFragment extends Fragment {
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
                 if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
-                    String rawData = result.getData().getStringExtra("scanned_data");
-                    merchantName = parseMerchantName(rawData);
+                    merchantName = result.getData().getStringExtra("scanned_data");
                     merchantText.setText("Merchant: " + merchantName);
                 }
             }
@@ -63,31 +63,9 @@ public class HomeFragment extends Fragment {
         return view;
     }
 
-    private String parseMerchantName(String data) {
-        if (data == null || data.isEmpty()) return "Unknown Merchant";
-
-        try {
-            if (data.startsWith("upi://pay")) {
-                Uri uri = Uri.parse(data);
-                String pn = uri.getQueryParameter("pn");
-                if (pn != null && !pn.isEmpty()) {
-                    return URLDecoder.decode(pn, "UTF-8");
-                }
-
-                // Fallback: use UPI ID if name is missing
-                String pa = uri.getQueryParameter("pa");
-                if (pa != null) return pa;
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        return data; // Return raw data if it's not a UPI link or parsing fails
-    }
-
     private void processPayment() {
         String amtStr = amountInput.getText().toString();
-        if (amtStr.isEmpty() || merchantName.isEmpty() || merchantName.equals("No merchant selected")) {
+        if (amtStr.isEmpty() || merchantName.isEmpty()) {
             Toast.makeText(getContext(), "Scan QR and enter amount", Toast.LENGTH_SHORT).show();
             return;
         }

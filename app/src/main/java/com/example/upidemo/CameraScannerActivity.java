@@ -4,14 +4,9 @@ import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.net.Uri;
 import android.os.Bundle;
-import android.provider.MediaStore;
 import android.util.Size;
-import android.widget.Button;
 import android.widget.Toast;
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.camera.core.CameraSelector;
@@ -28,7 +23,6 @@ import com.google.mlkit.vision.barcode.BarcodeScannerOptions;
 import com.google.mlkit.vision.barcode.BarcodeScanning;
 import com.google.mlkit.vision.barcode.common.Barcode;
 import com.google.mlkit.vision.common.InputImage;
-import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -36,19 +30,6 @@ import java.util.concurrent.Executors;
 public class CameraScannerActivity extends AppCompatActivity {
     private PreviewView previewView;
     private ExecutorService cameraExecutor;
-    private BarcodeScanner scanner;
-
-    private final ActivityResultLauncher<Intent> galleryLauncher = registerForActivityResult(
-            new ActivityResultContracts.StartActivityForResult(),
-            result -> {
-                if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-                    Uri imageUri = result.getData().getData();
-                    if (imageUri != null) {
-                        scanImageFromUri(imageUri);
-                    }
-                }
-            }
-    );
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -56,18 +37,7 @@ public class CameraScannerActivity extends AppCompatActivity {
         setContentView(R.layout.activity_camera_scanner);
 
         previewView = findViewById(R.id.previewView);
-        Button galleryBtn = findViewById(R.id.galleryBtn);
         cameraExecutor = Executors.newSingleThreadExecutor();
-
-        BarcodeScannerOptions options = new BarcodeScannerOptions.Builder()
-                .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
-                .build();
-        scanner = BarcodeScanning.getClient(options);
-
-        galleryBtn.setOnClickListener(v -> {
-            Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-            galleryLauncher.launch(intent);
-        });
 
         if (allPermissionsGranted()) {
             startCamera();
@@ -94,7 +64,7 @@ public class CameraScannerActivity extends AppCompatActivity {
                         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                         .build();
 
-                imageAnalysis.setAnalyzer(cameraExecutor, this::analyzeImage);
+                imageAnalysis.setAnalyzer(cameraExecutor, new BarcodeAnalyzer());
 
                 CameraSelector cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA;
 
@@ -107,53 +77,36 @@ public class CameraScannerActivity extends AppCompatActivity {
         }, ContextCompat.getMainExecutor(this));
     }
 
-    @SuppressLint("UnsafeOptInUsageError")
-    private void analyzeImage(@NonNull ImageProxy imageProxy) {
-        if (imageProxy.getImage() != null) {
-            InputImage image = InputImage.fromMediaImage(imageProxy.getImage(), imageProxy.getImageInfo().getRotationDegrees());
-            scanner.process(image)
-                    .addOnSuccessListener(barcodes -> {
-                        for (Barcode barcode : barcodes) {
-                            String rawValue = barcode.getRawValue();
-                            if (rawValue != null) {
-                                returnResult(rawValue);
-                            }
-                        }
-                    })
-                    .addOnCompleteListener(task -> imageProxy.close());
-        } else {
-            imageProxy.close();
-        }
-    }
+    private class BarcodeAnalyzer implements ImageAnalysis.Analyzer {
+        private BarcodeScanner scanner;
 
-    private void scanImageFromUri(Uri uri) {
-        try {
-            InputImage image = InputImage.fromFilePath(this, uri);
-            scanner.process(image)
-                    .addOnSuccessListener(barcodes -> {
-                        if (barcodes.isEmpty()) {
-                            Toast.makeText(this, "No QR code found in image", Toast.LENGTH_SHORT).show();
-                        } else {
+        public BarcodeAnalyzer() {
+            BarcodeScannerOptions options = new BarcodeScannerOptions.Builder()
+                    .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+                    .build();
+            scanner = BarcodeScanning.getClient(options);
+        }
+
+        @Override
+        @SuppressLint("UnsafeOptInUsageError")
+        public void analyze(@NonNull ImageProxy imageProxy) {
+            if (imageProxy.getImage() != null) {
+                InputImage image = InputImage.fromMediaImage(imageProxy.getImage(), imageProxy.getImageInfo().getRotationDegrees());
+                scanner.process(image)
+                        .addOnSuccessListener(barcodes -> {
                             for (Barcode barcode : barcodes) {
                                 String rawValue = barcode.getRawValue();
                                 if (rawValue != null) {
-                                    returnResult(rawValue);
-                                    break;
+                                    Intent resultIntent = new Intent();
+                                    resultIntent.putExtra("scanned_data", rawValue);
+                                    setResult(RESULT_OK, resultIntent);
+                                    finish();
                                 }
                             }
-                        }
-                    })
-                    .addOnFailureListener(e -> Toast.makeText(this, "Failed to scan image", Toast.LENGTH_SHORT).show());
-        } catch (IOException e) {
-            Toast.makeText(this, "Failed to load image", Toast.LENGTH_SHORT).show();
+                        })
+                        .addOnCompleteListener(task -> imageProxy.close());
+            }
         }
-    }
-
-    private void returnResult(String rawValue) {
-        Intent resultIntent = new Intent();
-        resultIntent.putExtra("scanned_data", rawValue);
-        setResult(RESULT_OK, resultIntent);
-        finish();
     }
 
     @Override
