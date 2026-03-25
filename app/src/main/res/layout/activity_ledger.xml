@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/ledgerTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Group Ledger"
+        android:textSize="24sp"
+        android:textStyle="bold" />
+
+    <LinearLayout
+        android:id="@+id/summaryLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:orientation="vertical"
+        android:padding="8dp"
+        android:background="#F0F0F0">
+
+        <TextView
+            android:id="@+id/youOweText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="You owe: ₹0"
+            android:textColor="@android:color/holo_red_dark"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/youAreOwedText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="You are owed: ₹0"
+            android:textColor="@android:color/holo_green_dark"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/expensesRv"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginTop="16dp" />
+
+</LinearLayout>
