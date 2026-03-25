@@ -13,11 +13,10 @@ public class SplashActivity extends AppCompatActivity {
 
         new Handler().postDelayed(() -> {
             PrefManager pref = new PrefManager(this);
-            if (pref.getUserId() != null) {
-                startActivity(new Intent(SplashActivity.this, LoginActivity.class));
-            } else {
-                startActivity(new Intent(SplashActivity.this, SignupActivity.class));
-            }
+            // If user is already logged in (has a session), we still want them to enter PIN for security
+            // Or if they logged out, they need to sign in again.
+            // In both cases, LoginActivity is now the universal entry point.
+            startActivity(new Intent(SplashActivity.this, LoginActivity.class));
             finish();
         }, 2000);
     }

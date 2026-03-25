@@ -2,6 +2,7 @@ package com.example.upidemo;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.EditText;
@@ -11,6 +12,7 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import com.google.firebase.firestore.FirebaseFirestore;
+import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -28,7 +30,8 @@ public class GroupDetailActivity extends AppCompatActivity {
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
                 if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
-                    merchantName = result.getData().getStringExtra("scanned_data");
+                    String rawData = result.getData().getStringExtra("scanned_data");
+                    merchantName = parseMerchantName(rawData);
                     groupMerchantText.setText("Merchant: " + merchantName);
                 }
             }
@@ -69,6 +72,24 @@ public class GroupDetailActivity extends AppCompatActivity {
         });
     }
 
+    private String parseMerchantName(String data) {
+        if (data == null || data.isEmpty()) return "Unknown Merchant";
+        try {
+            if (data.startsWith("upi://pay")) {
+                Uri uri = Uri.parse(data);
+                String pn = uri.getQueryParameter("pn");
+                if (pn != null && !pn.isEmpty()) {
+                    return URLDecoder.decode(pn, "UTF-8");
+                }
+                String pa = uri.getQueryParameter("pa");
+                if (pa != null) return pa;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return data;
+    }
+
     private void loadGroupDetails() {
         db.collection("groups").document(groupId).get().addOnSuccessListener(doc -> {
             Group group = doc.toObject(Group.class);
@@ -80,6 +101,7 @@ public class GroupDetailActivity extends AppCompatActivity {
     }
 
     private void fetchMemberNames() {
+        if (memberIds == null || memberIds.isEmpty()) return;
         db.collection("users").whereIn("userId", memberIds).get().addOnSuccessListener(querySnapshot -> {
             StringBuilder names = new StringBuilder();
             for (com.google.firebase.firestore.QueryDocumentSnapshot doc : querySnapshot) {
