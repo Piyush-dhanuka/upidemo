@@ -12,9 +12,13 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.google.firebase.firestore.FirebaseFirestore;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public class LedgerActivity extends AppCompatActivity {
@@ -31,6 +35,7 @@ public class LedgerActivity extends AppCompatActivity {
     private Button settleBtn;
     private Map<String, String> userNames = new HashMap<>();
     private double currentOwedAmount = 0;
+    private String mostOwedMemberId = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -60,8 +65,7 @@ public class LedgerActivity extends AppCompatActivity {
         loadGroupDetails();
 
         settleBtn.setOnClickListener(v -> {
-            // Open payment fragment or activity
-            PaymentBottomSheet sheet = PaymentBottomSheet.newInstance(groupId, currentOwedAmount);
+            PaymentBottomSheet sheet = PaymentBottomSheet.newInstance(groupId, currentOwedAmount, mostOwedMemberId);
             sheet.show(getSupportFragmentManager(), "PaymentBottomSheet");
         });
     }
@@ -94,6 +98,8 @@ public class LedgerActivity extends AppCompatActivity {
                             if (expense != null) expenseList.add(expense);
                         }
 
+                        Collections.sort(expenseList, (e1, e2) -> Long.compare(e2.timestamp, e1.timestamp));
+
                         updateGroupSummary();
                         adapter.notifyDataSetChanged();
                     }
@@ -101,19 +107,21 @@ public class LedgerActivity extends AppCompatActivity {
     }
 
     private void updateGroupSummary() {
-        SettlementCalculator.GroupSummary summary = SettlementCalculator.calculateGroupSummary(groupMembers, expenseList);
-
+        String currentUserId = pref.getUserId();
+        SettlementCalculator.GroupSummary summary = SettlementCalculator.calculateGroupSummary(groupMembers, expenseList, currentUserId);
+        
         totalExpenseText.setText("Total Group Expense: ₹" + String.format("%.2f", summary.totalExpense));
         perPersonShareText.setText("Per Person Share: ₹" + String.format("%.2f", summary.sharePerPerson));
-
+        
         userStatuses.clear();
         userStatuses.addAll(summary.userStatuses);
         memberAdapter.notifyDataSetChanged();
 
-        // Find current user's status for the Settle button
-        String myId = pref.getUserId();
+        double maxBalance = -1;
+        mostOwedMemberId = null;
+
         for (SettlementCalculator.UserStatus status : userStatuses) {
-            if (status.userId.equals(myId)) {
+            if (status.userId.equals(currentUserId)) {
                 myStatusText.setText(status.statusMessage);
                 if (status.balance < -0.01) {
                     currentOwedAmount = Math.abs(status.balance);
@@ -124,7 +132,12 @@ public class LedgerActivity extends AppCompatActivity {
                     myStatusText.setTextColor(status.balance > 0.01 ? Color.parseColor("#1E8E3E") : Color.GRAY);
                     settleBtn.setVisibility(View.GONE);
                 }
-                break;
+            }
+
+            // Find who is owed the most to suggest as recipient
+            if (status.balance > maxBalance) {
+                maxBalance = status.balance;
+                mostOwedMemberId = status.userId;
             }
         }
     }
@@ -146,7 +159,7 @@ public class LedgerActivity extends AppCompatActivity {
         @Override
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             SettlementCalculator.UserStatus status = statuses.get(position);
-            holder.text1.setText(status.name + " (Paid: ₹" + String.format("%.2f", status.amountPaid) + ")");
+            holder.text1.setText(status.name + " (Net: ₹" + String.format("%.2f", status.amountPaid) + ")");
             holder.text2.setText(status.statusMessage);
 
             if (status.balance > 0.01) {
@@ -174,6 +187,7 @@ public class LedgerActivity extends AppCompatActivity {
     private static class ExpenseAdapter extends RecyclerView.Adapter<ExpenseAdapter.ViewHolder> {
         private List<Expense> expenses;
         private Map<String, String> userNames;
+        private SimpleDateFormat dateFormat = new SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault());
 
         public ExpenseAdapter(List<Expense> expenses, Map<String, String> userNames) {
             this.expenses = expenses;
@@ -193,19 +207,34 @@ public class LedgerActivity extends AppCompatActivity {
             holder.merchant.setText(expense.merchant);
             holder.amount.setText("₹" + expense.amount);
             String paidByName = userNames.get(expense.paidBy);
-            holder.paidBy.setText("Paid by: " + (paidByName != null ? paidByName : "Unknown"));
+
+            if ("settlement".equals(expense.type)) {
+                String toName = (expense.splitBetween != null && !expense.splitBetween.isEmpty()) ? userNames.get(expense.splitBetween.get(0)) : "Group";
+                holder.paidBy.setText(paidByName + " paid " + toName);
+                holder.merchant.setText("Settlement");
+            } else {
+                holder.paidBy.setText("Paid by: " + (paidByName != null ? paidByName : "Unknown"));
+            }
+            
+            if (expense.timestamp > 0) {
+                holder.dateText.setText(dateFormat.format(new Date(expense.timestamp)));
+                holder.dateText.setVisibility(View.VISIBLE);
+            } else {
+                holder.dateText.setVisibility(View.GONE);
+            }
         }
 
         @Override
         public int getItemCount() { return expenses.size(); }
 
         static class ViewHolder extends RecyclerView.ViewHolder {
-            TextView merchant, paidBy, amount;
+            TextView merchant, paidBy, amount, dateText;
             public ViewHolder(@NonNull View itemView) {
                 super(itemView);
                 merchant = itemView.findViewById(R.id.merchantText);
                 paidBy = itemView.findViewById(R.id.paidByText);
                 amount = itemView.findViewById(R.id.amountText);
+                dateText = itemView.findViewById(R.id.dateText);
             }
         }
     }

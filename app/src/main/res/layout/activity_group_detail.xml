@@ -13,25 +13,41 @@
         android:textSize="24sp"
         android:textStyle="bold" />
 
-    <TextView
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:orientation="horizontal"
         android:layout_marginTop="16dp"
-        android:text="Members:"
-        android:textStyle="bold" />
+        android:gravity="center_vertical">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Members:"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/addMemberBtn"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="+ Add Person" />
+    </LinearLayout>
 
     <TextView
         android:id="@+id/membersListText"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="Loading members..." />
+        android:layout_marginTop="4dp"
+        android:text="Loading members..."
+        android:textColor="@color/text_secondary" />
 
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:layout_marginTop="16dp"
-        android:background="@android:color/darker_gray" />
+        android:background="#E8EAED" />
 
     <Button
         android:id="@+id/groupScanBtn"
@@ -47,13 +63,19 @@
         android:layout_marginTop="16dp"
         android:text="No merchant selected" />
 
-    <EditText
-        android:id="@+id/groupAmountInput"
+    <com.google.android.material.textfield.TextInputLayout
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:hint="Amount"
-        android:inputType="numberDecimal" />
+        android:hint="Amount">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/groupAmountInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="numberDecimal" />
+    </com.google.android.material.textfield.TextInputLayout>
 
     <Button
         android:id="@+id/groupPayBtn"
@@ -67,7 +89,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
-        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        style="@style/Widget.Material3.Button.OutlinedButton"
         android:text="View Ledger" />
 
 </LinearLayout>

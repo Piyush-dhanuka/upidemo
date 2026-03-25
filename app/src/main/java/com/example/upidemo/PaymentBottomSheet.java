@@ -11,21 +11,24 @@ import androidx.annotation.Nullable;
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.firestore.FirebaseFirestore;
+import java.util.Collections;
 import java.util.UUID;
 
 public class PaymentBottomSheet extends BottomSheetDialogFragment {
     private String groupId;
     private double initialAmount;
+    private String recipientId;
     private TextInputEditText amountInput;
     private Button confirmBtn;
     private FirebaseFirestore db;
     private PrefManager pref;
 
-    public static PaymentBottomSheet newInstance(String groupId, double amount) {
+    public static PaymentBottomSheet newInstance(String groupId, double amount, String recipientId) {
         PaymentBottomSheet fragment = new PaymentBottomSheet();
         Bundle args = new Bundle();
         args.putString("groupId", groupId);
         args.putDouble("amount", amount);
+        args.putString("recipientId", recipientId);
         fragment.setArguments(args);
         return fragment;
     }
@@ -36,6 +39,7 @@ public class PaymentBottomSheet extends BottomSheetDialogFragment {
         if (getArguments() != null) {
             groupId = getArguments().getString("groupId");
             initialAmount = getArguments().getDouble("amount");
+            recipientId = getArguments().getString("recipientId");
         }
         db = FirebaseFirestore.getInstance();
         pref = new PrefManager(requireContext());
@@ -49,7 +53,6 @@ public class PaymentBottomSheet extends BottomSheetDialogFragment {
         amountInput = view.findViewById(R.id.amountInput);
         confirmBtn = view.findViewById(R.id.confirmSettleBtn);
 
-        // Pre-fill with the amount the user owes
         amountInput.setText(String.format("%.2f", initialAmount));
 
         confirmBtn.setOnClickListener(v -> processSettlement());
@@ -67,15 +70,16 @@ public class PaymentBottomSheet extends BottomSheetDialogFragment {
         double amount = Double.parseDouble(amtStr);
         String expenseId = UUID.randomUUID().toString();
         
-        // A settlement is essentially an expense paid by the debtor to the group
+        // Mark this as "settlement" type
+        // splitBetween will contain the recipientId so the calculator knows who was paid
         Expense settlement = new Expense(
                 expenseId,
-                "group",
+                "settlement",
                 groupId,
                 pref.getUserId(),
                 amount,
                 "Group Settlement",
-                null, // This amount effectively reduces their debt in the next calculation
+                recipientId != null ? Collections.singletonList(recipientId) : null,
                 System.currentTimeMillis()
         );
 
