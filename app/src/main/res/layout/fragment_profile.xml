@@ -28,10 +28,18 @@
         android:text="User ID" />
 
     <Button
-        android:id="@+id/logoutBtn"
+        android:id="@+id/reviewBtn"
+        style="@style/Widget.Material3.Button.TonalButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="32dp"
+        android:text="Rate &amp; Review" />
+
+    <Button
+        android:id="@+id/logoutBtn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
         android:text="Logout" />
 
 </LinearLayout>
